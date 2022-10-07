@@ -11,6 +11,7 @@ import javafx.scene.control.ListView;
 import javafx.scene.control.SelectionMode;
 import javafx.scene.input.MouseEvent;
 import net.lingala.zip4j.ZipFile;
+import net.lingala.zip4j.exception.ZipException;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.FileUtils;
 
@@ -109,11 +110,7 @@ public class MainController {
             if (selectedServerFileUri == null || file == null)
                 App.showAlert("Error", "Выберите файлы в окне сервера и клиента", Alert.AlertType.INFORMATION);
             else {
-                try {
-                    this.extractOnServer(file, selectedServerFileUri);
-                } catch (IOException e) {
-                    System.out.println(e.getMessage());
-                }
+                this.extractOnServer(file, selectedServerFileUri);
                 this.loadServerListView();
             }
         }
@@ -121,85 +118,126 @@ public class MainController {
 
     public void buttonSaveOnClient(ActionEvent actionEvent) {
         ObservableList<Integer> selectedIndicesServer = this.serverListView.getSelectionModel().getSelectedIndices(); //нумерация с нуля
-        int selectedIndexClient = this.clientListView.getSelectionModel().getSelectedIndex();
-        File[] files = this.currentClientFile.listFiles();
-        if (files != null) {
-            File file = files[selectedIndexClient];
-            if (selectedIndicesServer.size() == 0 || file == null)
-                App.showAlert("Error", "Выберите файлы в окне сервера и клиента", Alert.AlertType.INFORMATION);
-//            for (Integer i : selectedIndicesServer) {
-//                Node selectedNode = this.serverNodes.get(i);
-//                System.out.println("Получаем " + selectedNode);
-//                new NodeRepository().getFileById(selectedNode.getId(), file.toString() + "\\" + selectedNode.getName());
-//            }
+        if (selectedIndicesServer.size() == 0)
+            App.showAlert("Error", "Выберите файлы в окне сервера", Alert.AlertType.INFORMATION);
+
+        System.out.println("client = " + this.currentClientFile);
+        ZipFile zipFile = new ZipFile(this.currentClientFile);
+        for(Integer i : selectedIndicesServer){
+            Path path = Path.of(this.currentServerFile.toString(), this.currentServerChildNodes.get(i)); // серверный файл/папка для сохранения на клиенте с полным относит адресом \main\big\b2
+            try {
+                zipFile.addFile(path.toFile());
+            } catch (ZipException e) {
+                System.out.println(e.getMessage());
+            }
         }
     }
 
 
-    public void extractOnServer(File clFile, String servFile) throws IOException {
-        //clFile - файл/директория на клиенте которая переносится целиком на сервер
-        //servFile - директория на клиенте в которую извлекается clFile
-        Files.walkFileTree(clFile.toPath(), new FileVisitor<Path>() {
-            @Override
-            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
-                Path parent = Paths.get(clFile.getParent());
-                Path relativizeSrcClient = parent.relativize(dir);
+    public void extractOnClient(File clFile, String servFile) {
+        //toDo получить файлы зип архивом || получить список не повторяющихся файлов и получить каждый
+    }
 
-                Path servPath = Paths.get(servFile, relativizeSrcClient.toString());
-                new FileRepository().addDirectoryByUri(servPath.toString());
+    public void extractOnServer(File clFile, String servFile) {
+//clFile - файл/директория на клиенте которая переносится целиком на сервер
+//servFile - директория на клиенте в которую извлекается clFile
+        try {
+            Files.walkFileTree(clFile.toPath(), new FileVisitor<Path>() {
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                    Path parent = Paths.get(clFile.getParent());
+                    Path relativizeSrcClient = parent.relativize(dir);
 
-                return FileVisitResult.CONTINUE;
-            }
+                    Path servPath = Paths.get(servFile, relativizeSrcClient.toString());
+                    new FileRepository().addDirectoryByUri(servPath.toString());
 
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-
-                Path serverFileSrc = Path.of(servFile);
-
-                if (file.getFileName().toString().endsWith(".zip")) {
-                    Path dirForZipFilesOnClient = Path.of(file.toString().replace(".zip", ""));
-                    Path dirForZipFileOnServer = serverFileSrc.resolve(clFile.toPath().getParent().relativize(dirForZipFilesOnClient));
-
-                    ZipFile zipFile = new ZipFile(file.toString());
-                    zipFile.extractAll(dirForZipFilesOnClient.toString());
-
-                    extractOnServer(dirForZipFilesOnClient.toFile(), dirForZipFileOnServer.getParent().toString());
-                    FileUtils.deleteDirectory(dirForZipFilesOnClient.toFile());
-                } else {
-                    Path dirOnServer = serverFileSrc.resolve(clFile.toPath().getParent().relativize(file.getParent())); // относительный \qwe\big\ar
-                    try {
-                        String md5Hex = DigestUtils.md5Hex(new BufferedInputStream(new FileInputStream(file.toString())));
-
-                        List<File> filesByServerUri = new FileRepository().getFilesByUri(dirOnServer.toString());
-                        String clearClientFileName = VersionUtil.getClearFileName(file.getFileName().toString());
-                        for (File f : filesByServerUri) {
-                            String serverFileName = f.getName();
-                            if (VersionUtil.getClearFileName(serverFileName).equals(clearClientFileName)){
-                                String md5HexServerFile = DigestUtils.md5Hex(new BufferedInputStream(new FileInputStream(f.toString())));
-                                if(!md5Hex.equalsIgnoreCase(md5HexServerFile)){
-                                    int version = VersionUtil.getVersion(serverFileName);
-                                    String newFileNameWithVersion = VersionUtil.getFileNameWithVersion(clearClientFileName, ++version);
-                                    new FileRepository().addFile(dirOnServer.toString() + "\\" + newFileNameWithVersion);
-                                }
-                            } else new FileRepository().addFile(dirOnServer.toString() + "\\" + clearClientFileName);
-                        }
-                    } catch (Exception e) {
-                        System.out.println(e.getMessage());
-                    }
+                    return FileVisitResult.CONTINUE;
                 }
-                return FileVisitResult.CONTINUE;
-            }
 
-            @Override
-            public FileVisitResult visitFileFailed(Path file, IOException exc) {
-                return FileVisitResult.CONTINUE;
-            }
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
 
-            @Override
-            public FileVisitResult postVisitDirectory(Path dir, IOException exc) {
-                return FileVisitResult.CONTINUE;
-            }
-        });
+                    Path serverFileSrc = Path.of(servFile);
+
+                    if (file.getFileName().toString().endsWith(".zip")) {
+                        Path dirForZipFilesOnClient = Path.of(file.toString().replace(".zip", ""));
+                        Path dirForZipFileOnServer = serverFileSrc.resolve(clFile.toPath().getParent().relativize(dirForZipFilesOnClient));
+
+                        ZipFile zipFile = new ZipFile(file.toString());
+                        try {
+                            zipFile.extractAll(dirForZipFilesOnClient.toString());
+                        } catch (ZipException e) {
+                            System.out.println(e.getMessage());
+                        }
+
+                        extractOnServer(dirForZipFilesOnClient.toFile(), dirForZipFileOnServer.getParent().toString());
+                        try {
+                            FileUtils.deleteDirectory(dirForZipFilesOnClient.toFile());
+                        } catch (IOException e) {
+                            System.out.println(e.getMessage());
+                        }
+                    } else {
+                        /*Path dirOnServer = serverFileSrc.resolve(clFile.toPath().getParent().relativize(file.getParent())); // относительный \qwe\big\ar
+                        try {
+                            String md5Hex = DigestUtils.md5Hex(new BufferedInputStream(new FileInputStream(file.toString())));
+                            List<File> filesByServerUri = new FileRepository().getFilesByUri(dirOnServer.toString());
+                            String clearClientFileName = VersionUtil.getClearFileName(file.getFileName().toString());
+                            int version = 1;
+                            for (File f : filesByServerUri) {
+                                String serverFileName = f.getName();
+                                if (VersionUtil.getClearFileName(serverFileName).equals(clearClientFileName)) {
+                                    String md5HexServerFile = DigestUtils.md5Hex(new BufferedInputStream(new FileInputStream(f.toString())));
+                                    if (!md5Hex.equalsIgnoreCase(md5HexServerFile))
+                                        version = VersionUtil.getVersion(serverFileName) + 1;
+                                    else return FileVisitResult.CONTINUE;
+                                }
+                            }
+                            String newFileNameWithVersion = VersionUtil.getFileNameWithVersion(clearClientFileName, version);
+                            new FileRepository().addFile(newFileNameWithVersion, file.toString(), dirOnServer.toString());
+                        } catch (Exception e) {
+                            System.out.println(e.getMessage());
+                        }*/
+                        Path dirOnServer = serverFileSrc.resolve(clFile.toPath().getParent().relativize(file.getParent())); // относительный \qwe\big\ar
+                        try {
+                            try (BufferedInputStream bis = new BufferedInputStream(new FileInputStream(file.toString()))) {
+                                String md5Hex = DigestUtils.md5Hex(bis);
+                                List<File> filesByServerUri = new FileRepository().getFilesByUri(dirOnServer.toString());
+                                String clearClientFileName = VersionUtil.getClearFileName(file.getFileName().toString());
+                                int version = 1;
+                                for (File f : filesByServerUri) {
+                                    String serverFileName = f.getName();
+                                    if (VersionUtil.getClearFileName(serverFileName).equals(clearClientFileName)) {
+                                        try (BufferedInputStream bis2 = new BufferedInputStream(new FileInputStream(f.toString()))) {
+                                            String md5HexServerFile = DigestUtils.md5Hex(bis2);
+                                            if (!md5Hex.equalsIgnoreCase(md5HexServerFile))
+                                                version = VersionUtil.getVersion(serverFileName) + 1;
+                                            else return FileVisitResult.CONTINUE;
+                                        }
+                                    }
+                                }
+                                String newFileNameWithVersion = VersionUtil.getFileNameWithVersion(clearClientFileName, version);
+                                new FileRepository().addFile(newFileNameWithVersion, file.toString(), dirOnServer.toString());
+                            }
+                        } catch (Exception e) {
+                            System.out.println(e.getMessage());
+                        }
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFileFailed(Path file, IOException exc) {
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult postVisitDirectory(Path dir, IOException exc) {
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+        } catch (IOException e) {
+            System.out.println(e.getMessage());
+        }
     }
 }
 //https://www.baeldung.com/java-md5
