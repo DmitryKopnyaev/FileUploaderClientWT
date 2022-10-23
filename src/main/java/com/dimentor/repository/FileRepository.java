@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -36,18 +37,38 @@ public class FileRepository implements ConnectServer {
             multipart.addFormField("uri", serverUri);
             String response = multipart.finish();
             System.out.println("response = " + response);
-            //мож вернуть обьект из респонса
         } catch (Exception e) {
             System.out.println(e.getMessage());
         }
     }
 
+    //fileOutPath - относит путь
+    public void getUploadingFile(String fileSrc, String fileTo) {
+        try {
+            String urlStr = "http://localhost:8080/file/obj?uri=" + URLEncoder.encode(fileSrc, StandardCharsets.UTF_8);
+            HttpMultipart.getMultiPart(urlStr, fileTo);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
-    //+V+
     public List<String> getListFilesByUri(String uri) {
         try {
             BufferedReader reader = this.connect(
                     Constants.SERVER_NAME + "/file/list?uri=" + URLEncoder.encode(uri, StandardCharsets.UTF_8),
+                    "GET", null);
+            return new ObjectMapper().readValue(reader, new TypeReference<List<String>>() {
+            });
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+            return null;
+        }
+    }
+
+    public List<String> getTreeFilesByUri(String uri) {
+        try {
+            BufferedReader reader = this.connect(
+                    Constants.SERVER_NAME + "/file/tree?uri=" + URLEncoder.encode(uri, StandardCharsets.UTF_8),
                     "GET", null);
             return new ObjectMapper().readValue(reader, new TypeReference<List<String>>() {
             });
@@ -71,17 +92,26 @@ public class FileRepository implements ConnectServer {
         }
     }
 
-    //getParentFilesByDirUri
-
-    //http://localhost:8080/file/hex?diruri=&hex=b23591bd5fa74db4ee83db3c655a9b97
-    //ToDo
-    public File getFileByUriAndChecksum(String diruri, String hex) {
+    public File deleteDirectoryByUri(String uri) {
         try {
             BufferedReader reader = this.connect(
-                    Constants.SERVER_NAME + "/file/hex?diruri=" + diruri + "&hex=" + URLEncoder.encode(hex, StandardCharsets.UTF_8),
-                    "GET", null);
+                    Constants.SERVER_NAME + "/file?uri=" + URLEncoder.encode(uri, StandardCharsets.UTF_8),
+                    "DELETE", null);
             return new ObjectMapper().readValue(reader, new TypeReference<File>() {
             });
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+            return null;
+        }
+    }
+
+    public String getHexByUri(String uri) {
+        System.out.println("URI = " + uri);
+        try {
+            BufferedReader reader = this.connect(
+                    Constants.SERVER_NAME + "/file/byhex?uri=" + URLEncoder.encode(uri, StandardCharsets.UTF_8),
+                    "GET", null);
+            return reader.readLine();
         } catch (Exception e) {
             System.out.println(e.getMessage());
             return null;

@@ -27,9 +27,9 @@
             <Font name="System Bold" size="14.0" />
          </font></Button>
       <Separator layoutX="23.0" layoutY="56.0" prefHeight="1.0" prefWidth="678.0" />
-      <Button layoutX="511.0" layoutY="62.0" mnemonicParsing="false" text="Delete" />
-      <Button layoutX="452.0" layoutY="62.0" mnemonicParsing="false" text="AddDir" />
-      <Button layoutX="78.0" layoutY="62.0" mnemonicParsing="false" text="AddDir" />
-      <Button layoutX="136.0" layoutY="62.0" mnemonicParsing="false" text="Delete" />
+      <Button fx:id="deleteServerDir" layoutX="511.0" layoutY="62.0" mnemonicParsing="false" onAction="#deleteServerDir" text="Delete" />
+      <Button fx:id="addServerDir" layoutX="452.0" layoutY="62.0" mnemonicParsing="false" onAction="#addServerDir" text="AddDir" />
+      <Button fx:id="addClientDir" layoutX="79.0" layoutY="62.0" mnemonicParsing="false" onAction="#addClientDir" text="AddDir" />
+      <Button fx:id="deleteClientDir" layoutX="136.0" layoutY="62.0" mnemonicParsing="false" onAction="#deleteClientDir" text="Delete" />
    </children>
 </AnchorPane>

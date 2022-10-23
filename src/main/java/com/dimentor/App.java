@@ -5,9 +5,11 @@ import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
+import javafx.scene.control.TextInputDialog;
 import javafx.stage.Stage;
 
 import java.io.IOException;
+import java.util.Optional;
 
 /**
  * JavaFX App
@@ -38,6 +40,22 @@ public class App extends Application {
         alert.setHeaderText(null);
         alert.setContentText(content);
         alert.showAndWait();
+    }
+
+    public static String inputText() {
+        TextInputDialog dialog = new TextInputDialog("new dir");
+        dialog.setTitle("Text Input Dialog");
+        dialog.setContentText("Please enter name:");
+
+        Optional<String> result = dialog.showAndWait();
+        if (result.isPresent())
+            return result.orElse(null);
+
+        return null;
+
+        //// The Java 8 way to get the response value (with lambda expression).
+        //result.ifPresent(name -> System.out.println("Your name: " + name));
+        //Note: The result.isPresent() will return false if the user cancelled the dialog.
     }
 
     public static void main(String[] args) {

@@ -42,12 +42,4 @@ public class VersionUtil {
         }
         return name;
     }
-    /*public static void main(String[] args) {
-        String f = "file(12).txt";
-//        int version = getVersion(f);
-//        System.out.println(getFileNameWithVersion(f, ++version));
-
-        System.out.println(getClearFileName(f));
-
-    }*/
 }

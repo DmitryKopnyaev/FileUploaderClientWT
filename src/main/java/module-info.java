@@ -13,7 +13,6 @@ module com.dimentor {
 
     opens com.dimentor to javafx.fxml;
     exports com.dimentor;
-    exports com.dimentor.model;
     exports com.dimentor.util;
     exports com.dimentor.repository;
 }

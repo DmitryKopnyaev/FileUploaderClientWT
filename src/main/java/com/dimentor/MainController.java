@@ -7,6 +7,7 @@ import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
 import javafx.scene.control.ListView;
 import javafx.scene.control.SelectionMode;
 import javafx.scene.input.MouseEvent;
@@ -27,6 +28,11 @@ import java.util.List;
 public class MainController {
     public ListView<String> clientListView;
     public ListView<String> serverListView;
+    public Button addServerDir;
+    public Button addClientDir;
+    public Button deleteServerDir;
+    public Button deleteClientDir;
+
     private File clientRoot = new File("C:\\");
     private File currentClientFile;
     private File currentServerFile;
@@ -37,9 +43,9 @@ public class MainController {
         this.serverListView.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE); //множественный выбор
         this.currentClientFile = clientRoot;
         this.currentServerFile = new File("");
-        this.currentServerChildNodes = new FileRepository().getListFilesByUri(this.currentServerFile.toString());
-        loadClientListView();
-        loadServerListView();
+
+        this.loadClientListView();
+        this.loadServerListView();
     }
 
     public void loadClientListView() {
@@ -48,6 +54,7 @@ public class MainController {
     }
 
     public void loadServerListView() {
+        this.currentServerChildNodes = new FileRepository().getListFilesByUri(this.currentServerFile.toString());
         this.serverListView.setItems(FXCollections.observableList(this.currentServerChildNodes));
     }
 
@@ -81,7 +88,6 @@ public class MainController {
         }
     }
 
-
     public void buttonServerBack(ActionEvent actionEvent) {
         Path parent = this.currentServerFile.toPath().getParent();
         if (parent != null) {
@@ -100,17 +106,14 @@ public class MainController {
     }
 
     public void buttonSaveOnServer(ActionEvent actionEvent) {
-        int selectedIndexServer = this.serverListView.getSelectionModel().getSelectedIndex();
-        String selectedServerFile = currentServerChildNodes.get(selectedIndexServer);
-        String selectedServerFileUri = new File(this.currentServerFile, selectedServerFile).toString();
         int selectedIndexClient = this.clientListView.getSelectionModel().getSelectedIndex();
         File[] files = this.currentClientFile.listFiles();
         if (files != null) {
             File file = files[selectedIndexClient];
-            if (selectedServerFileUri == null || file == null)
+            if (file == null)
                 App.showAlert("Error", "Выберите файлы в окне сервера и клиента", Alert.AlertType.INFORMATION);
             else {
-                this.extractOnServer(file, selectedServerFileUri);
+                this.extractOnServer(file, this.currentServerFile.toString());
                 this.loadServerListView();
             }
         }
@@ -121,21 +124,31 @@ public class MainController {
         if (selectedIndicesServer.size() == 0)
             App.showAlert("Error", "Выберите файлы в окне сервера", Alert.AlertType.INFORMATION);
 
-        System.out.println("client = " + this.currentClientFile);
-        ZipFile zipFile = new ZipFile(this.currentClientFile);
-        for(Integer i : selectedIndicesServer){
+        for (Integer i : selectedIndicesServer) {
             Path path = Path.of(this.currentServerFile.toString(), this.currentServerChildNodes.get(i)); // серверный файл/папка для сохранения на клиенте с полным относит адресом \main\big\b2
-            try {
-                zipFile.addFile(path.toFile());
-            } catch (ZipException e) {
-                System.out.println(e.getMessage());
-            }
+            extractOnClient(path.toString(), this.currentClientFile);
         }
+        this.loadClientListView();
     }
 
+    public void extractOnClient(String servFile, File clFile) {
+        Path parent = Path.of("/").relativize(Path.of(servFile).getParent());
+        List<String> listFilesByUri = new FileRepository().getTreeFilesByUri(servFile);
+        if (listFilesByUri != null) {
+            for (String s : listFilesByUri) {
+                Path pathS = Path.of(s);
+                Path relativize = parent.relativize(pathS);
+                String hexByUri = new FileRepository().getHexByUri(s); //null если директория
 
-    public void extractOnClient(File clFile, String servFile) {
-        //toDo получить файлы зип архивом || получить список не повторяющихся файлов и получить каждый
+                if (hexByUri == null) {
+                    new File(clFile, relativize.toString()).mkdirs();
+                } else
+                    new FileRepository().getUploadingFile(s, new File(clFile, relativize.toString()).toString());
+            }
+        } else {
+            new FileRepository().getUploadingFile(servFile, clFile.toPath().resolve(Path.of(servFile).getFileName()).toString());
+        }
+        this.loadClientListView();
     }
 
     public void extractOnServer(File clFile, String servFile) {
@@ -158,7 +171,6 @@ public class MainController {
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
 
                     Path serverFileSrc = Path.of(servFile);
-
                     if (file.getFileName().toString().endsWith(".zip")) {
                         Path dirForZipFilesOnClient = Path.of(file.toString().replace(".zip", ""));
                         Path dirForZipFileOnServer = serverFileSrc.resolve(clFile.toPath().getParent().relativize(dirForZipFilesOnClient));
@@ -177,26 +189,6 @@ public class MainController {
                             System.out.println(e.getMessage());
                         }
                     } else {
-                        /*Path dirOnServer = serverFileSrc.resolve(clFile.toPath().getParent().relativize(file.getParent())); // относительный \qwe\big\ar
-                        try {
-                            String md5Hex = DigestUtils.md5Hex(new BufferedInputStream(new FileInputStream(file.toString())));
-                            List<File> filesByServerUri = new FileRepository().getFilesByUri(dirOnServer.toString());
-                            String clearClientFileName = VersionUtil.getClearFileName(file.getFileName().toString());
-                            int version = 1;
-                            for (File f : filesByServerUri) {
-                                String serverFileName = f.getName();
-                                if (VersionUtil.getClearFileName(serverFileName).equals(clearClientFileName)) {
-                                    String md5HexServerFile = DigestUtils.md5Hex(new BufferedInputStream(new FileInputStream(f.toString())));
-                                    if (!md5Hex.equalsIgnoreCase(md5HexServerFile))
-                                        version = VersionUtil.getVersion(serverFileName) + 1;
-                                    else return FileVisitResult.CONTINUE;
-                                }
-                            }
-                            String newFileNameWithVersion = VersionUtil.getFileNameWithVersion(clearClientFileName, version);
-                            new FileRepository().addFile(newFileNameWithVersion, file.toString(), dirOnServer.toString());
-                        } catch (Exception e) {
-                            System.out.println(e.getMessage());
-                        }*/
                         Path dirOnServer = serverFileSrc.resolve(clFile.toPath().getParent().relativize(file.getParent())); // относительный \qwe\big\ar
                         try {
                             try (BufferedInputStream bis = new BufferedInputStream(new FileInputStream(file.toString()))) {
@@ -239,16 +231,39 @@ public class MainController {
             System.out.println(e.getMessage());
         }
     }
+
+    public void addServerDir(ActionEvent actionEvent) {
+        String s = App.inputText();
+        if (s != null && !s.isEmpty()) {
+            new FileRepository().addDirectoryByUri(new File(this.currentServerFile, s).toString());
+            this.loadServerListView();
+        }
+
+    }
+
+    public void addClientDir(ActionEvent actionEvent) {
+        String s = App.inputText();
+        if (s != null && !s.isEmpty()) {
+            new File(this.currentClientFile, s).mkdirs();
+            this.loadClientListView();
+        }
+    }
+
+    public void deleteServerDir(ActionEvent actionEvent) {
+        String selectedItem = this.serverListView.getSelectionModel().getSelectedItem();
+        File file = new File(this.currentServerFile, selectedItem);
+        new FileRepository().deleteDirectoryByUri(file.toString());
+        this.loadServerListView();
+    }
+
+    public void deleteClientDir(ActionEvent actionEvent) {
+        String selectedItem = this.clientListView.getSelectionModel().getSelectedItem();
+        File file = new File(this.currentClientFile, selectedItem);
+        try {
+            FileUtils.deleteDirectory(file);
+            this.loadClientListView();
+        } catch (IOException e) {
+            System.out.println(e.getMessage());
+        }
+    }
 }
-//https://www.baeldung.com/java-md5
-//3. MD5 Using Apache Commons
-/*@Test
-public void givenPassword_whenHashingUsingCommons_thenVerifying()  {
-    String hash = "35454B055CC325EA1AF2126E27707052";
-    String password = "ILoveJava";
-
-    String md5Hex = DigestUtils
-      .md5Hex(password).toUpperCase();
-
-    assertThat(md5Hex.equals(hash)).isTrue();
-}*/
