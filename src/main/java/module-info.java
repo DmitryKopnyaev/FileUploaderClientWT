@@ -9,6 +9,7 @@ module com.dimentor {
     requires zip4j;
     requires org.apache.commons.io;
     requires org.apache.commons.codec;
+    requires org.junit.jupiter.api;
 //    requires org.apache.commons.lang3;
 
     opens com.dimentor to javafx.fxml;
